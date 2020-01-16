@@ -25,7 +25,7 @@
 #
 # { "groups": ["utility", "databases"], "a": false, "b": true }
 
-import urllib
+from six.moves.urllib import request, parse, error
 
 try:
     import json
@@ -87,12 +87,12 @@ class ProxmoxPoolList(list):
 
 class ProxmoxVersion(dict):
     def get_version(self):
-        return float(self['version'])
+        return float(self['version'].split('-')[0])
 
 
 class ProxmoxPool(dict):
     def get_members_name(self):
-        return [member['name'] for member in self['members'] if member['template'] != 1]
+        return [member['name'] for member in self['members'] if (member['type'] == 'qemu' or member['type'] == 'lxc') and member['template'] != 1]
 
 
 class ProxmoxAPI(object):
@@ -128,11 +128,15 @@ class ProxmoxAPI(object):
         elif not options.password:
             raise Exception(
                 'Missing mandatory parameter --password (or PROXMOX_PASSWORD or "password" key in config file).')
+        
+        # URL should end with a trailing slash
+        if not options.url.endswith("/"):
+            options.url = options.url + "/"
 
     def auth(self):
         request_path = '{0}api2/json/access/ticket'.format(self.options.url)
 
-        request_params = urllib.urlencode({
+        request_params = parse.urlencode({
             'username': self.options.username,
             'password': self.options.password,
         })
@@ -423,7 +427,7 @@ def main():
                 bool_validate_cert = config_data["validateCert"]
             except KeyError:
                 pass
-    if os.environ.has_key('PROXMOX_INVALID_CERT'):
+    if 'PROXMOX_INVALID_CERT' in os.environ:
         bool_validate_cert = False
 
     parser = OptionParser(usage='%prog [options] --list | --host HOSTNAME')
@@ -448,7 +452,7 @@ def main():
     if options.pretty:
         indent = 2
 
-    print(json.dumps(data, indent=indent))
+    print((json.dumps(data, indent=indent)))
 
 
 if __name__ == '__main__':
